@@ -96,7 +96,7 @@ fullcities_glm |>
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 ```
 
-The majority of cities in this regression analysis have odds ratios with CI's that are lower than the null value of one, indicating statistically signficiant assocation of lower case resolution for male victims. 3 cities, Fresno CA, Stockton, CA, and Albuquerque, NM, have positive statistically significant associations between male victims receiving closed cases.
+The majority of cities in this regression analysis have odds ratios with CI's that are lower than the null value of one, indicating statistically significant association of lower case resolution for male victims. 3 cities, Fresno CA, Stockton, CA, and Albuquerque, NM, have positive statistically significant associations between male victims receiving closed cases.
 
 # Problem 2: Bootstrapping Weather Data
 ```{r Data Import from API - Given in Prob. Instructions}
@@ -116,7 +116,11 @@ weather_df =
 ```
 
 # Problem 3: Cross Validation Dataset
-```{r Data Import and EDA}
+
+For this problem, we are given a csv dataset on recorded birthweights, and the values of many potential variables that could be predictive indicators that influence birthweight. Once this data is imported below, we are asked to explore the data and identify a few predictor variables that can be tested for their potential association with birthweight in a linear regression model.
+
+Four variables were categorical in nature, and converted from numeric data to factor values. 
+```{r Data Import and Initial Cleaning}
 
 birthweight_df = read_csv("data/birthweight.csv", na = c("", "NA", "Unknown")) |> 
   janitor::clean_names()
@@ -128,6 +132,47 @@ birthweight_df = birthweight_df |>
          frace = as.factor(frace),
          mrace = as.factor(mrace),
          )
+```
+
+**Variable Selection**: For this Problem, I will be choosing the 3 columns `smoken`: mean number of cigarettes smoked daily by mother, `malform`: presence of birth defect / malformations in development, and `ppwt`: mother's pre-pregnancy weight. I have chosen these three variables due to exisiting research across literature that identifies that smoking during pregnancy can lead to increased development of birth defect, miscarriage, and SIDS after pregnancy (source: https://www.cdc.gov/tobacco/campaign/tips/diseases/pregnancy.html). Similarly, the addictive characteristics of nicotine in cigarettes can depress appetite, limit caloric intake, and lead to signficant weight loss in smokers, and the potential impact that being an underweight women may have on developing a child in utero.
+
+Ahead of fitting these predictor variables to the response variable of birthweight `bwt`, I hypothesize that the three predictor variables **will each have a statistically significant association with birthweight, where both increased smoking and presence of malformations will have a negative association with birthweight, and lower mother weight will correspond with lower birthweight.**
+
+I began by also running quick scatterplots of the available data for these 3 predictor variables using `geom_point`: 
+```{r}
+
+birthweight_df |> 
+  ggplot(aes(x = smoken, y = bwt)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth()
+
+birthweight_df |> 
+  ggplot(aes(x = ppwt, y = bwt)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth()
+
+birthweight_df |> 
+  ggplot(aes(x = malform, y = bwt)) +
+  geom_point(alpha = 0.5)
+```
+
+Moderate interactions appear to exist for number of cigarettes and parent weight. I predict that malformations may have the highest chance of no statistically significant association with birthweight, but this may be due to the low sample size of malformations in this study.
+
+**Creating the linear model:**
+There appear to be no missing values in these 3 predictor variables and in response variable birthweight when using `drop_na`.
+```{r}
+birthwt_lm = birthweight_df |> 
+  select(bwt, smoken, malform, ppwt) |> 
+  drop_na() |> 
+  lm(bwt ~ smoken + malform + ppwt, data = _)
+
+birthwt_lm |> 
+  broom::tidy() |> 
+  knitr::kable(digits = 4)
+
+birthwt_lm |> 
+  broom::glance() |> 
+  knitr::kable(digits = 4)
 
 ```
 
