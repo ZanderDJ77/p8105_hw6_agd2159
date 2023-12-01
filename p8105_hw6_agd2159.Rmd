@@ -1,0 +1,70 @@
+---
+title: "P8015_Hw6_agd2159"
+output: github_document
+author: "Zander De Jesus"
+date: "12-2-2023"
+---
+
+```{r Global Settings, message = FALSE}
+library(tidyverse)
+library(rnoaa)
+library(patchwork)
+set.seed(1234)
+
+theme_set(theme(legend.position = "bottom"))
+
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+```
+
+# Problem 1: Washington Post Homicide Data Exploration
+
+```{r Data Import}
+wp_homicides = read_csv("data/homicide-data.csv", na = c("", "NA", "Unknown")) |> 
+  mutate(city_state = str_c(city, state, sep = ","),
+    resolution = case_when(
+      disposition == "Closed without arrest" ~ "unsolved",
+      disposition == "Open/No arrest"        ~ "unsolved",
+      disposition == "Closed by arrest"      ~ "solved")) |> 
+  filter(city_state != "Tulsa,AL")
+
+```
+
+# Problem 2: Bootstrapping Weather Data
+```{r Data Import from API - Given in Prob. Instructions}
+
+weather_df = 
+  rnoaa::meteo_pull_monitors(
+    c("USW00094728"),
+    var = c("PRCP", "TMIN", "TMAX"), 
+    date_min = "2022-01-01",
+    date_max = "2022-12-31") |>
+  mutate(
+    name = recode(id, USW00094728 = "CentralPark_NY"),
+    tmin = tmin / 10,
+    tmax = tmax / 10) |>
+  select(name, id, everything())
+
+```
+
+# Problem 3: Cross Validation Dataset
+```{r Data Import and EDA}
+
+birthweight_df = read_csv("data/birthweight.csv", na = c("", "NA", "Unknown")) |> 
+  janitor::clean_names()
+
+#Converting Categorical Variables from Factor to Numeric
+Test = birthweight_df |> 
+  mutate(babysex = as.factor(babysex),
+         malform = as.factor(malform),
+         frace = as.factor(frace),
+         mrace = as.factor(mrace),
+         )
+
+```
+
