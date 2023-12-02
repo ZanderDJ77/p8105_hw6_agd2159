@@ -153,18 +153,22 @@ boot_results |>
   select(results_rsq) |> 
   unnest(results_rsq) |> 
   ggplot(aes(x = r.squared)) + 
-  geom_density()
+  geom_density() + labs(title = "Bootstrapped R Squared Distribution, 5000 Iterations")
 ```
 
 This density plot of 5,000 bootstrapped repetitions of the `maxtemp_model` regression begins to approach a normal distribution of R Squared values. Although there appears to be a slight left skew in this R squared model even after 5000 replications.
 
-Next, we will use the beta coefficients to compute the second value over 5000 iterations, "log(beta1*beta2)
+Next, we will use the beta coefficients to compute the second value over 5000 iterations, "log(beta1*beta2)"
 ```{r}
 #Broom::tidy() function places all coefficients in one single column, need to separate the coefficients of interest tmin as beta1 and prcp as beta2
 
+#Needed to keep r.squared values for confidence interval calc in next chunk, added those results into this dataframe for comparisons.
+
 boot_calculations = boot_results |> 
   unnest(results_beta) |> 
-  select(strap_number, term, estimate) |> 
+  select(strap_number, term, estimate, results_rsq) |> 
+  unnest(results_rsq) |> 
+  select(strap_number, term, estimate, r.squared) |> 
   pivot_wider(
     names_from = term,
     values_from = estimate) |> 
@@ -172,23 +176,36 @@ boot_calculations = boot_results |>
 
 boot_calculations |> 
   ggplot(aes(x = logbeta1beta2)) + 
-  geom_density()
+  geom_density() + labs(title = "Bootstrapped Log(Tmin*Prcp) Distribution, 5000 Iterations")
 ```
 
 This calculation of `log(beta1*beta2)`, logging the multiplied coefficients `tmin` (beta1) and `prcp` (beta2) producing a more left skewed distirbution than the rsquared plot. RStudio notes that 3365 rows were dropped due to having NA value, so the 5000 sample size is smaller at only 1635 values modeled in this density plot.
 
-```{r Confidence Interval Calculations, eval = FALSE}
+Lastly, what are the confidence intervals for these two bootstrapped values?
+```{r Confidence Interval Calculations}
+#added na.rm to remove na's from logged calculation
 
-#not finished
-boot_results |> 
-  unnest()
-  group_by(term) |> 
+boot_calculations |>
   summarize(
-    ci_lower = quantile(estimate, 0.025),
-    ci_upper = quantile(estimate, 0.975),
-  )
+  ci_lower = quantile(r.squared, 0.025),
+  ci_upper = quantile(r.squared, 0.975)
+  ) |> 
+  knitr::kable(digits = 3, caption = "CI of r.squared")
+
+boot_calculations |>
+  summarize(
+    ci_lower = quantile(logbeta1beta2, 0.025, na.rm=TRUE),
+    ci_upper = quantile(logbeta1beta2, 0.975, na.rm=TRUE)
+  ) |> 
+  knitr::kable(digits = 3, caption = "CI of log(beta1*beta2)")
+    
 
 ```
+
+From the 5000 Bootstrap, we have two 95% confidence intervals that indicate that:
+
+  - the R squared value is **between 0.889 and 0.941**
+  - the effect calculation of log(beta1beta2) is **between -9.005 and -4.632**
 
 # Problem 3: Cross Validation of Developed Linear Regression - Birthweight Dataset
 
@@ -211,7 +228,8 @@ birthweight_df = birthweight_df |>
 
 **Variable Selection**: For this Problem, I will be choosing the 3 columns `smoken`: mean number of cigarettes smoked daily by mother, `malform`: presence of birth defect / malformations in development, and `ppwt`: mother's pre-pregnancy weight. I have chosen these three variables due to existing research across literature that identifies that smoking during pregnancy can lead to increased development of birth defect, miscarriage, and SIDS after pregnancy (source: https://www.cdc.gov/tobacco/campaign/tips/diseases/pregnancy.html). Similarly, the addictive characteristics of nicotine in cigarettes can depress appetite, limit caloric intake, and lead to signficant weight loss in smokers, and the potential impact that being an underweight women may have on developing a child in utero.
 
-Ahead of fitting these predictor variables to the response variable of birthweight `bwt`, I hypothesize that the three predictor variables **will each have a statistically significant association with birthweight, where both increased smoking and presence of malformations will have a negative association with birthweight, and lower mother weight will correspond with lower birthweight.**
+**Initial Model Hypothesis:**
+Ahead of fitting these predictor variables to the response variable of birthweight `bwt`, I hypothesize that the three predictor variables will each have a statistically significant association with birthweight, where both increased smoking and presence of malformations will have a negative association with birthweight, and lower mother weight will correspond with lower birthweight.
 
 I began by also running quick scatterplots of the available data for these 3 predictor variables using `geom_point`: 
 ```{r}
