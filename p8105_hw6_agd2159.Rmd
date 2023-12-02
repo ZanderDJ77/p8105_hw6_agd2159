@@ -115,6 +115,47 @@ weather_df =
 
 ```
 
+The problem asks us to design a simple linear model where the response variable of interest is maximum temperature `tmax`, and its relationship with the predictor variables minimum tmeperature `tmin` and precipitation `prcp`. 
+
+```{r}
+maxtemp_model = lm(tmax ~ tmin + prcp, data = weather_df)
+
+maxtemp_model |> 
+  broom::tidy() |> 
+  knitr::kable(digits = 4)
+
+maxtemp_model |> 
+  broom::glance() |> 
+  knitr::kable(digits = 4)
+```
+
+With the linear model in this current state, initial results of the regression indicate that minimum daily temp `tmin` has a significant positive association with `tmax` (p-value less than 0.05)  while precipitation does not have a significant association with `tmax` (p-value: 0.464 > 0.05).
+
+The r squared shown usinbg `broom::glance()` tells us that this simple model is highly explanatory of tmax's variance, largely carried by the strength of `tmin` as a predictor variable.
+
+`broom::glance()` will be used in Bootstrapping to collect R Squared Data for iterations. 
+
+### Preparing the Bootstrap
+
+```{r First Attempt}
+
+#For somer reason this is giving the same weather_df regression results every time, need to fix
+boot_results =
+  tibble(strap_number = 1:1000 ) |> 
+  mutate(
+    strap_sample = map(strap_number, \(i) (weather_df)),
+    models = map(strap_sample, \(df) lm(tmax ~ tmin + prcp, data = df)),
+    results = map(models, broom::glance)
+  ) |> 
+  select(strap_number, results) |> 
+  unnest(results)
+
+boot_results |> 
+  ggplot(aes(x = r.squared)) + 
+  geom_density()
+```
+
+
 # Problem 3: Cross Validation of Developed Linear Regression - Birthweight Dataset
 
 For this problem, we are given a csv dataset on recorded birthweights, and the values of many potential variables that could be predictive indicators that influence birthweight. Once this data is imported below, we are asked to explore the data and identify a few predictor variables that can be tested for their potential association with birthweight in a linear regression model.
@@ -229,8 +270,8 @@ cv_results =
   cv_df |> 
   mutate(
     birthwt_lm = map(train, \(df) lm(bwt ~ smoken + malform + ppwt, data = df)),
-    length_gest_model = map(train, \(df) mgcv::gam(bwt ~ blength + gaweeks, data = df)),
-    circum_length_sex_model = map(train, \(df) mgcv::gam(bwt ~ bhead*blength*babysex, data = df))) |> 
+    length_gest_model = map(train, \(df) lm(bwt ~ blength + gaweeks, data = df)),
+    circum_length_sex_model = map(train, \(df) lm(bwt ~ bhead*blength*babysex, data = df))) |> 
   mutate(
     rmse_birthwt_lm = map2_dbl(birthwt_lm, test, \(mod, df) rmse(mod, df)),
     rmse_length_gest = map2_dbl(length_gest_model, test, \(mod, df) rmse(mod, df)),
