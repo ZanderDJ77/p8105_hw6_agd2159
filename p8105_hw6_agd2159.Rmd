@@ -131,23 +131,21 @@ maxtemp_model |>
 
 With the linear model in this current state, initial results of the regression indicate that minimum daily temp `tmin` has a significant positive association with `tmax` (p-value less than 0.05)  while precipitation does not have a significant association with `tmax` (p-value: 0.464 > 0.05).
 
-The r squared shown usinbg `broom::glance()` tells us that this simple model is highly explanatory of tmax's variance, largely carried by the strength of `tmin` as a predictor variable.
+The r squared shown using `broom::glance()` tells us that this simple model is highly explanatory of tmax's variance, largely carried by the strength of `tmin` as a predictor variable.
 
 `broom::glance()` will be used in Bootstrapping to collect R Squared Data for iterations. 
 
 ### Preparing the Bootstrap
+Creating the Bootstrap that can calculate R Squared Data over 5000 iterations, assigning the regression model `maxtemp_model` as an anonymous function:
+```{r modelr::bootstrap function}
+#Note: Seed is set to 1234 at start of document in Global Settings.
 
-```{r First Attempt}
-
-#For somer reason this is giving the same weather_df regression results every time, need to fix
-boot_results =
-  tibble(strap_number = 1:1000 ) |> 
+boot_results = weather_df |> 
+  modelr::bootstrap(n = 5000, id = "strap_number") |> 
   mutate(
-    strap_sample = map(strap_number, \(i) (weather_df)),
-    models = map(strap_sample, \(df) lm(tmax ~ tmin + prcp, data = df)),
-    results = map(models, broom::glance)
-  ) |> 
-  select(strap_number, results) |> 
+    models = map(strap, \(df) lm(tmax ~ tmin + prcp, data = df)),
+    results = map(models, broom::glance)) |> 
+  select(results) |> 
   unnest(results)
 
 boot_results |> 
@@ -155,6 +153,9 @@ boot_results |>
   geom_density()
 ```
 
+This density plot of 5,000 bootstrapped repetitions of the `maxtemp_model` regression begins to approach a normal distribution of R Squared values. Although there appears to be a slight left skew in this R squared model even after 5000 replications.
+
+Next, we will compute the log(beta1 + beta2) using 5,000 iterations, and find the confidence intervals of both bootstrapped values.
 
 # Problem 3: Cross Validation of Developed Linear Regression - Birthweight Dataset
 
