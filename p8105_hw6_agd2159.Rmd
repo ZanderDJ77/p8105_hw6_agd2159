@@ -115,7 +115,7 @@ weather_df =
 
 ```
 
-# Problem 3: Cross Validation Dataset
+# Problem 3: Cross Validation of Developed Linear Regression - Birthweight Dataset
 
 For this problem, we are given a csv dataset on recorded birthweights, and the values of many potential variables that could be predictive indicators that influence birthweight. Once this data is imported below, we are asked to explore the data and identify a few predictor variables that can be tested for their potential association with birthweight in a linear regression model.
 
@@ -161,7 +161,7 @@ Moderate interactions appear to exist for number of cigarettes and parent weight
 **Creating the linear model:**
 There appear to be no missing values in these 3 predictor variables and in response variable birthweight when using `drop_na`.
 ```{r}
-birthwt_lm = birthweight_df |> 
+birthwt_lm = birthweight_df |>
   select(bwt, smoken, malform, ppwt) |> 
   drop_na() |> 
   lm(bwt ~ smoken + malform + ppwt, data = _)
@@ -175,4 +175,89 @@ birthwt_lm |>
   knitr::kable(digits = 4)
 
 ```
+
+**Interpretation of this initial model:** The initial tibble produced using `broom:tidy()` shows that the 'smoken' predictor has a statistically significant negative association and the 'ppwt' predictor has a statistically significant positive association. Presence of malformations did not have a statistically significant association with birthweight. 
+
+However, the second table produced using `broom::glance` shows that **this model has a very low r squared value of 0.0403** This means that the variation in birthweight explained by this linear model is small and largely left unexplained, and more predictors should be included. It is likely that this basic model is producing inaccurate statistical inferencing and may have several confounding covariates.
+
+### Plotting residuals of predictors using modelr
+```{r}
+
+birthweight_df |>
+  modelr::add_predictions(birthwt_lm) |> 
+  modelr::add_residuals(birthwt_lm) |> 
+ggplot(aes(x = pred, y = resid)) +
+  geom_point(alpha = 0.5)
+
+```
+
+## Prob. 3 Task 2 - Cross Validation with two other linear models: 
+
+How does this potential model compare to other linear models predicting infant birthweight?
+```{r Preparing Comparative Models for Cross Validation}
+
+#Model 1 - Birth Length and Gestational Age in weeks as main effect predictors
+
+length_gest_model = lm(bwt ~ blength + gaweeks, data = birthweight_df)
+
+#Model 2 -  Interactivity implies multiplicative not additive model
+
+circum_length_sex_model = lm(bwt ~ bhead*blength*babysex, data = birthweight_df)
+
+#Gathering Predictions from three models of interest:
+birthweight_df |> 
+  gather_predictions(birthwt_lm, length_gest_model, circum_length_sex_model) |> 
+  ggplot(aes(x = bwt, y = pred)) +
+  geom_point(alpha = 0.3) + geom_smooth(se = FALSE, color = "red") + facet_grid(. ~ model) + 
+  labs(title = "Visualizing gathered model predictions compared to birthweights for all three linear models")
+
+```
+
+This graphic appears to show that the birthweight model I made using `smoken`, `malform`, and `ppwt`, does not have much predictive power in comparison to the other comparative models. Trendline is nearly flat across birth weights.
+
+**Preparing Training Dataframe for Cross Validation, Guided by In-Class Example and P8105 Website Video Example**
+```{r}
+
+cv_df = 
+  crossv_mc(birthweight_df, 100) |> 
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble)
+  )
+
+cv_results = 
+  cv_df |> 
+  mutate(
+    birthwt_lm = map(train, \(df) lm(bwt ~ smoken + malform + ppwt, data = df)),
+    length_gest_model = map(train, \(df) mgcv::gam(bwt ~ blength + gaweeks, data = df)),
+    circum_length_sex_model = map(train, \(df) mgcv::gam(bwt ~ bhead*blength*babysex, data = df))) |> 
+  mutate(
+    rmse_birthwt_lm = map2_dbl(birthwt_lm, test, \(mod, df) rmse(mod, df)),
+    rmse_length_gest = map2_dbl(length_gest_model, test, \(mod, df) rmse(mod, df)),
+    rmse_circum_length_sex = map2_dbl(circum_length_sex_model, test, \(mod, df) rmse(mod, df))
+    )
+
+```
+
+Now that this training dataframe is set up and RMSE can be iteratively calculated, we can plot the RMSE of each model to see prediction accuracy of the three models.
+
+```{r}
+cv_results |> 
+  select(starts_with("rmse")) |> 
+  pivot_longer(
+    everything(),
+    names_to = "model_type",
+    values_to = "rmse",
+    names_prefix = "rmse_"
+  ) |> 
+  ggplot(aes(x = model_type, y = rmse, fill = model_type)) +
+  geom_violin() +
+  labs(
+    title = "Comparing Root Means Squares Estimate for Predicting Infant Birthweight",
+    x = "Model Type",
+    y = "RMSE"
+  )
+```
+
+The lower the RMSE, the better predictive accuracy of a linear model. This graph shows that the model I made for this problem set, `birthwt_lm` **has the highest RMSE and worst predictive accuracy of the three models**. This affirms what I saw using `broom::glance()` and seeing that the R squared for this model was very low at 0.04. The `circum_length_sex_model` has the best RMSE of the three and has the most accurate predictive power. However, since RMSE is in the 100s for all of these linear models, it is likely that a more complex model containing more predictors and interactions should be designed for this study.
 
